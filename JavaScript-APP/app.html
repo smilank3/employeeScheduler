@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title>Shift Scheduler</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: auto;
+
+            padding: 20px;
+            border-radius: 8px;
+
+        }
+
+
+
+        select,
+        input {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+
+        }
+
+        button {
+            padding: 10px 20px;
+            cursor: pointer;
+            border: none;
+            border-radius: 4px;
+            background: #007bff;
+            color: white;
+            margin-top: 10px;
+            font-weight: 800;
+            font-family: inherit;
+        }
+
+        #output {
+            margin-top: 30px;
+        }
+
+
+
+        th,
+        td {
+            border: 1px solid #eee;
+
+            text-align: left;
+
+        }
+
+        th {
+            background: #111212;
+            color: white;
+        }
+
+        #employeeTable {
+            width: 100%;
+            table-layout: fixed;
+            border-collapse: collapse;
+        }
+
+        #employeeTable th,
+        #employeeTable td {
+            padding: 3px;
+        }
+
+        #employeeTable th:first-child,
+        #employeeTable td:first-child {
+            width: 180px;
+        }
+
+        tbody tr:nth-child(even) {
+            background-color: #f2f2f2;
+       
+        }
+
+     
+        tbody tr:nth-child(odd) {
+            background-color: #ffffff;
+       
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <button onclick="addEmployeeRow()">+ Add Employee</button>
+        <button onclick="runScheduler()" style="background: #28a745;">Generate Schedule</button>
+        <h2>Employee Preferences</h2>
+        <table id="employeeTable">
+            <thead>
+                <tr>
+                    <th>Employee</th>
+                    <th>Mon</th>
+                    <th>Tue</th>
+                    <th>Wed</th>
+                    <th>Thu</th>
+                    <th>Fri</th>
+                    <th>Sat</th>
+                    <th>Sun</th>
+
+
+                </tr>
+            </thead>
+            <tbody id="employeeInputs">
+              
+            </tbody>
+        </table>
+
+
+
+        <div id="output"></div>
+    </div>
+
+    <script>
+        const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+        // for selection
+        const shiftTypes = ["Off", "morning", "afternoon", "evening",];
+        const actualShifts = ["morning", "afternoon", "evening"];
+
+        function addEmployeeRow() {
+            const tr = document.createElement('tr');
+            tr.className = 'employeeRow';
+
+            let html = `
+  <td>
+    <input type="text" placeholder="Name" class="empName" required>
+  </td>
+`;
+
+            days.forEach(day => {
+                html += `
+    <td>
+        <div style="padding:2px">
+             <p style="text-align:right;color:green"><strong> 1st Pref </strong></p>
+                <select class="pref1-${day}" style=" width:90%; margin:0 auto;">
+        ${shiftTypes
+                        .map(s => `<option value="${s}">
+            ${s.charAt(0).toUpperCase() + s.slice(1)}
+          </option>`)
+                        .join('')}
+      </select>
+             <p style="text-align:right; color:blue"><strong> 2nd Pref</strong></p>
+                <select class="pref2-${day}" style=" width:90%; margin:0 auto;">
+        ${shiftTypes
+                        .map(s => `<option value="${s}">
+            ${s.charAt(0).toUpperCase() + s.slice(1)}
+          </option>`)
+                        .join('')}
+      </select>
+            </div>
+   
+    </td>
+  `;
+            });
+
+            tr.innerHTML = html;
+            document.getElementById('employeeInputs').appendChild(tr);
+        }
+
+
+
+        function runScheduler() {
+            // validate Name inpur input before running scheduler
+
+            console.log("-----------------------------------")
+
+            // Collection employeess data from html dom tree.
+            const employees = Array.from(document.querySelectorAll('.employeeRow')).map(row => {
+                // 1. Get the .value so you get "John" instead of the HTML element
+                const name = row.querySelector('.empName').value
+
+                const prefs = days.reduce((acc, day) => {
+                    const pref1 = row.querySelector(`.pref1-${day}`).value;
+                    const pref2 = row.querySelector(`.pref2-${day}`).value;
+
+                    // 2. Assign the values to the key
+                    acc[day] = [pref1, pref2];
+
+                    // 3. CRITICAL: You must return the accumulator for the next loop!
+                    return acc;
+                }, {}); // Start with an empty object
+
+                console.log(prefs)
+                // Count how many days this employee is unavailable
+                //  this is how we know how many day he/she is working
+                const unavailableForWork = Object.values(prefs).filter(day => {
+                    return day[0] === "Off" && day[1] === "Off"
+                }).length;
+
+
+                return {
+                    name,
+                    prefs,
+                    workDayCount: 7 - Number(unavailableForWork)
+                };
+            });
+            console.log(employees)
+
+            // Data validation
+            // check if name is not empty
+            // Each Employee are not allowed to work more than 5 days
+
+            const errors = [];
+
+            employees.forEach((emp, i) => {
+
+                if (emp.name.trim().length === 0) {
+                    errors.push({ rowId: i, message: `Employe name is missing at row ${i + 1}` })
+                }
+
+                if (emp.workDayCount > 5) {
+                    errors.push({ rowId: i, message: `Employee are only allowed to work 5 days!` })
+                }
+
+
+            })
+            // handle Errors
+            if (errors.length) {
+                alert(JSON.stringify(errors, null, 2));
+                return;
+            }
+            // check employee availability (all shift by day(loop day and shift))
+            function isEmpAvailable(employee, day, shift) {
+                const [first, second] = employee.prefs[day];
+                if (first === "Off" && second === "Off") return false;
+                return first === shift || second === shift;
+            }
+            // preference rank
+            function getPreferenceRank(employee, day, shift) {
+                const [first, second] = employee.prefs[day];
+                if (first === shift) return 0;
+                if (second === shift) return 1;
+                return -1;
+            }
+
+            // fill the shift
+            function fillShift(day, shift, employeePool, assignedDays) {
+
+                console.log("Day " + day + " | " + " Shift " + shift);
+                const assigned = [];
+
+                const eligible = employeePool.filter(emp => {
+
+                    if (assignedDays.get(emp.name)?.has(day)) return false;
+                    const currentShifts = assignedDays.get(emp.name)?.size || 0;
+
+                    if (currentShifts >= emp.workDayCount) return false;
+
+                    return isEmpAvailable(emp, day, shift);
+                });
+                console.log(eligible)
+
+                // sort by preference rank, first choice
+                eligible.sort((a, b) => {
+                    const rankA = getPreferenceRank(a, day, shift);
+                    const rankB = getPreferenceRank(b, day, shift);
+                    if (rankA !== rankB) return rankA - rankB;
+                    const shiftsA = assignedDays.get(a.name)?.size || 0;
+                    const shiftsB = assignedDays.get(b.name)?.size || 0;
+                    return shiftsA - shiftsB;
+                });
+                console.log(eligible)
+                //  eligible: employee who are available to work on the given day might be different shift.
+
+
+
+                // override the preference if employee is working less days
+
+                const eligible2 = eligible.sort((a, b) => {
+                    return a.workDayCount - b.workDayCount;
+                })
+                console.log(' by work day count');
+                console.log(eligible2)
+
+
+
+                for (let i = 0; i < Math.min(2, eligible2.length); i++) {
+                    const emp = eligible2[i];
+                    const rank = getPreferenceRank(emp, day, shift);
+                    assigned.push({ name: emp.name, choice: rank === 0 ? "pref1" : "pref2" });
+                    if (!assignedDays.has(emp.name)) assignedDays.set(emp.name, new Set());
+                    assignedDays.get(emp.name).add(day);
+                }
+
+                if (assigned.length < 2) {
+                    console.warn(`${day} ${shift}: Only ${assigned.length} assigned`);
+                }
+
+                return assigned;
+            }
+
+            function generateSchedule(employeePool) {
+                const schedule = {};
+                const assignedDays = new Map();
+                //const actualShifts = ["morning", "afternoon", "evening"];
+
+                // loop over days and create schedule 
+                days.forEach(day => {
+                    // empty schedule for the day
+                    schedule[day] = {};
+                    // fill shift for the day 
+                    actualShifts.forEach(shift => {
+                        schedule[day][shift] = fillShift(day, shift, employeePool, assignedDays);
+                    });
+                });
+
+                return { schedule, assignedDays };
+            }
+
+
+            const generatedSchedule = generateSchedule(employees)
+
+            renderSchedule(generatedSchedule.schedule)
+
+
+           
+        }
+
+        function renderSchedule(schedule) {
+            console.log(schedule)
+            let html = `<h3>Weekly Schedule</h3><table><tr><th>Shift</th>${days.map(d => `<th>${d}</th>`).join('')}</tr>`;
+            actualShifts.forEach(shift => {
+                html += `<tr><td><strong>${shift.toUpperCase()}</strong></td>`;
+                days.forEach(day => {
+
+                    html += `<td>${schedule[day][shift].map((emp, i) => (emp.name)).join(', ') || 'Unstaffed'}</td>`;
+                });
+                html += `</tr>`;
+            });
+            document.getElementById('output').innerHTML = html + `</table>`;
+        }
+
+        // initialize
+
+        addEmployeeRow();
+    </script>
+</body>
+
+</html>
